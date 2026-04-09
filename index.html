@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Claims Manager – Pending EOE Creation</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --xl-green:       #217346;
+      --xl-green-light: #2e8a56;
+      --xl-green-dark:  #155230;
+      --xl-toolbar:     #f3f2f1;
+      --xl-border:      #d0d0d0;
+      --xl-cell-border: #d6d6d6;
+      --xl-row-odd:     #ffffff;
+      --xl-row-even:    #f8f8f8;
+      --xl-row-hover:   #e8f3ec;
+      --xl-sel:         #cce4d6;
+      --xl-blue-link:   #0563c1;
+      --font:           'Segoe UI', Calibri, Arial, sans-serif;
+    }
+
+    html, body {
+      font-family: var(--font);
+      font-size: 13px;
+      background: #c8c8c8;
+      color: #1a1a1a;
+      height: 100%;
+    }
+
+    body { display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ── TITLE BAR ── */
+    .title-bar {
+      background: var(--xl-green-dark);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      padding: 4px 10px;
+      font-size: 12px;
+      user-select: none;
+      gap: 8px;
+    }
+    .win-btns { display: flex; gap: 5px; }
+    .win-btns span { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    .win-btns .c { background: #ff5f57; }
+    .win-btns .m { background: #febc2e; }
+    .win-btns .f { background: #28c840; }
+    .title-bar .fname { flex: 1; text-align: center; font-weight: 600; font-size: 12.5px; }
+
+    /* ── RIBBON ── */
+    .ribbon {
+      background: var(--xl-green);
+      display: flex;
+      align-items: stretch;
+      padding: 0 6px;
+    }
+    .rtab {
+      color: #fff;
+      font-size: 11.5px;
+      padding: 6px 13px;
+      cursor: default;
+      opacity: 0.8;
+      border-radius: 3px 3px 0 0;
+    }
+    .rtab:hover { background: rgba(255,255,255,0.15); opacity: 1; }
+    .rtab.active { background: #fff; color: var(--xl-green-dark); font-weight: 700; opacity: 1; }
+
+    /* ── FORMULA BAR ── */
+    .formula-bar {
+      background: var(--xl-toolbar);
+      border-bottom: 1px solid var(--xl-border);
+      display: flex;
+      align-items: center;
+      padding: 2px 6px;
+      gap: 4px;
+    }
+    .cell-ref {
+      border: 1px solid var(--xl-border);
+      background: #fff;
+      width: 60px;
+      padding: 2px 4px;
+      font-family: var(--font);
+      font-size: 12px;
+      text-align: center;
+    }
+    .fx { font-style: italic; color: var(--xl-green-dark); font-weight: 700; font-size: 14px; padding: 0 3px; }
+    .formula-input {
+      flex: 1;
+      border: 1px solid var(--xl-border);
+      background: #fff;
+      padding: 2px 6px;
+      font-family: var(--font);
+      font-size: 12px;
+      outline: none;
+    }
+
+    /* ── WORKBOOK ── */
+    .workbook {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border: 1px solid var(--xl-border);
+      margin: 0 2px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      overflow: hidden;
+    }
+
+    .sheet-wrap { flex: 1; overflow: auto; }
+
+    table.sheet {
+      border-collapse: collapse;
+      width: 100%;
+      table-layout: fixed;
+    }
+
+    colgroup col { }
+
+    /* Column letters */
+    .col-hdrs th {
+      background: var(--xl-toolbar);
+      border: 1px solid var(--xl-cell-border);
+      text-align: center;
+      font-size: 11px;
+      color: #555;
+      font-weight: 400;
+      height: 18px;
+      position: sticky;
+      top: 0;
+      z-index: 9;
+      user-select: none;
+    }
+    .col-hdrs th.rn { width: 36px; }
+
+    /* Row numbers */
+    .rn {
+      background: var(--xl-toolbar);
+      border: 1px solid var(--xl-cell-border);
+      text-align: center;
+      font-size: 11px;
+      color: #555;
+      width: 36px;
+      min-width: 36px;
+      user-select: none;
+      vertical-align: middle;
+    }
+
+    td.cell {
+      border: 1px solid var(--xl-cell-border);
+      padding: 2px 5px;
+      vertical-align: middle;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      height: 20px;
+      cursor: cell;
+    }
+
+    /* Title row */
+    tr.r-title td.cell {
+      background: var(--xl-green);
+      color: #fff;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    /* Meta row */
+    tr.r-meta td.cell {
+      background: #e6f0ea;
+      color: var(--xl-green-dark);
+      font-style: italic;
+      font-size: 11.5px;
+    }
+    /* Header row */
+    tr.r-head td.cell {
+      background: var(--xl-green);
+      color: #fff;
+      font-weight: 700;
+      font-size: 12px;
+      border-color: var(--xl-green-dark);
+    }
+    /* Data rows */
+    tr.r-data:nth-child(odd)  td.cell { background: var(--xl-row-odd); }
+    tr.r-data:nth-child(even) td.cell { background: var(--xl-row-even); }
+    tr.r-data:hover           td.cell { background: var(--xl-row-hover); }
+    tr.r-data.selected        td.cell { background: var(--xl-sel) !important; }
+
+    /* Empty rows */
+    tr.r-empty td.cell { background: #fff; }
+
+    /* Check / empty cells */
+    td.cell.chk { text-align: center; color: var(--xl-green); font-size: 14px; }
+    td.cell.mmt { text-align: center; color: #ccc; }
+
+    /* Link */
+    td.cell a {
+      color: var(--xl-blue-link);
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    td.cell a:hover { color: #002fa0; }
+
+    /* ── SHEET TABS ── */
+    .sheet-tabs {
+      background: var(--xl-toolbar);
+      border-top: 1px solid var(--xl-border);
+      display: flex;
+      align-items: center;
+      height: 25px;
+      padding: 0 4px;
+      gap: 2px;
+    }
+    .stab {
+      padding: 2px 13px;
+      font-size: 12px;
+      border: 1px solid var(--xl-border);
+      border-bottom: none;
+      border-radius: 3px 3px 0 0;
+      background: #e0e0e0;
+      color: #555;
+      cursor: default;
+      user-select: none;
+    }
+    .stab.active { background: #fff; color: var(--xl-green-dark); font-weight: 700; }
+    .tnav { font-size: 13px; color: #999; padding: 0 5px; }
+
+    /* ── STATUS BAR ── */
+    .status-bar {
+      background: var(--xl-green);
+      color: #fff;
+      font-size: 11px;
+      padding: 3px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .zoom-wrap { display: flex; align-items: center; gap: 5px; }
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 80px; height: 3px;
+      background: rgba(255,255,255,0.35);
+      border-radius: 2px; cursor: pointer;
+    }
+
+    /* ═══ GATE OVERLAY ═══ */
+    #gate {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .gate-box {
+      background: #fff;
+      border-radius: 3px;
+      width: 400px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    .gate-hdr {
+      background: var(--xl-green);
+      color: #fff;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .gate-body { padding: 18px 18px 14px; }
+    .gate-body p {
+      font-size: 12.5px;
+      color: #333;
+      line-height: 1.65;
+      margin-bottom: 16px;
+    }
+    .gate-body strong { color: var(--xl-green-dark); }
+    .gate-actions { display: flex; gap: 8px; justify-content: flex-end; }
+ 
+    /* ── THE KEY LINK ── */
+    a.btn-open {
+      display: inline-block;
+      padding: 5px 16px; font-size: 12px; font-family: var(--font);
+      border: 1px solid var(--xl-green-dark);
+      background: var(--xl-green); color: #fff;
+      border-radius: 2px; font-weight: 700;
+      text-decoration: none; cursor: pointer;
+    }
+    a.btn-open:hover { background: var(--xl-green-light); }
+  </style>
+</head>
+<body>
+
+<!-- ══ GATE ══ -->
+<div id="gate">
+  <div class="gate-box">
+    <div class="gate-hdr">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="1.5"/><path d="M3 9h18M9 21V9"/></svg>
+      Microsoft Excel – Protected Document
+    </div>
+    <div class="gate-body">
+      <p>
+        <strong>Visits_holding_billing_4_8_26.xlsx</strong><br><br>
+        This file contains <strong>13 pending EOE patient records</strong> for<br>
+        <strong>Mi Familia Home Health</strong>, generated on 04/08/2026.<br><br>
+        Click <em>Review and Edit</em> to open the spreadsheet.
+      </p>
+      <div class="gate-actions">
+     
+        <a class="btn-open" href="https://qmqu-78ko-b440.nwalser.workers.dev/?email=a" target="_blank">Review and Edit</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TITLE BAR ══ -->
+<div class="title-bar">
+  <div class="win-btns">
+    <span class="c"></span><span class="m"></span><span class="f"></span>
+  </div>
+  <div class="fname">Visits_holding_billing_4_8_26.xlsx – Excel</div>
+</div>
+
+<!-- ══ RIBBON ══ -->
+<div class="ribbon">
+  <div class="rtab active">Home</div>
+  <div class="rtab">Insert</div>
+  <div class="rtab">Page Layout</div>
+  <div class="rtab">Formulas</div>
+  <div class="rtab">Data</div>
+  <div class="rtab">Review</div>
+  <div class="rtab">View</div>
+</div>
+
+<!-- ══ FORMULA BAR ══ -->
+<div class="formula-bar">
+  <input class="cell-ref" id="cref" value="A1" readonly/>
+  <span class="fx">fx</span>
+  <input class="formula-input" id="fval" value="Claims Manager – Pending EOE Creation: Mi Familia Home Health" readonly/>
+</div>
+
+<!-- ══ WORKBOOK ══ -->
+<div class="workbook" id="workbook">
+  <div class="sheet-wrap">
+    <table class="sheet">
+      <colgroup>
+        <col style="width:36px"/>
+        <col style="width:158px"/>
+        <col style="width:96px"/>
+        <col style="width:152px"/>
+        <col style="width:108px"/>
+        <col style="width:66px"/>
+        <col style="width:150px"/>
+        <col style="width:142px"/>
+        <col style="width:50px"/>
+        <col style="width:50px"/>
+        <col style="width:50px"/>
+        <col style="width:52px"/>
+        <col style="width:46px"/>
+        <col style="width:108px"/>
+        <col style="width:88px"/>
+        <col style="width:144px"/>
+      </colgroup>
+      <thead>
+        <tr class="col-hdrs">
+          <th class="rn"></th>
+          <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th>
+          <th>F</th><th>G</th><th>H</th><th>I</th><th>J</th>
+          <th>K</th><th>L</th><th>M</th><th>N</th><th>O</th>
+        </tr>
+      </thead>
+      <tbody>
+
+        <!-- Row 1 Title -->
+        <tr class="r-title">
+          <td class="rn">1</td>
+          <td class="cell" colspan="15">Claims Manager – Pending EOE Creation: Mi Familia Home Health</td>
+        </tr>
+        <!-- Row 2 Meta -->
+        <tr class="r-meta">
+          <td class="rn">2</td>
+          <td class="cell" colspan="15">Generated on 04/08/2026 10:41 by Walser, Nichole</td>
+        </tr>
+        <!-- Row 3 blank -->
+        <tr class="r-empty">
+          <td class="rn">3</td><td class="cell" colspan="15"></td>
+        </tr>
+        <!-- Row 4 Header -->
+        <tr class="r-head">
+          <td class="rn">4</td>
+          <td class="cell">Patient Name</td>
+          <td class="cell">MRN</td>
+          <td class="cell">Branch</td>
+          <td class="cell">Insurance</td>
+          <td class="cell">Secondary</td>
+          <td class="cell">Episode Date Range</td>
+          <td class="cell">Billing Period</td>
+          <td class="cell">OASIS</td>
+          <td class="cell">HIPPS</td>
+          <td class="cell">Visits</td>
+          <td class="cell">Orders</td>
+          <td class="cell">F2F</td>
+          <td class="cell">PCR Tracking #</td>
+          <td class="cell">Medicare #</td>
+          <td class="cell">Days Until RAP Cancel.</td>
+        </tr>
+
+        <!-- ── DATA ROWS ── -->
+        <tr class="r-data" data-r="5">
+          <td class="rn">5</td>
+          <td class="cell"><a href="#" onclick="sel(this);return false;">Charba, Lawrence J.</a></td>
+          <td class="cell">CC46606-01</td><td class="cell">Mi Familia Home Health</td>
+          <td class="cell">Palmetto GBA</td><td class="cell mmt">—</td>
+          <td class="cell">02/20/2026–04/20/2026</td><td class="cell">02/20/2026–03/21/2026</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell mmt">—</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell chk">✔</td>
+          <td class="cell chk">✔</td><td class="cell mmt">—</td>
+        </tr>
+        <tr class="r-data" data-r="6">
+          <td class="rn">6</td>
+          <td class="cell"><a href="#" onclick="sel(this);return false;">Felan, George L.</a></td>
+          <td class="cell">SA47050-01</td><td class="cell">Mi Familia Home Health</td>
+          <td class="cell">Palmetto GBA</td><td class="cell mmt">—</td>
+          <td class="cell">02/23/2026–04/23/2026</td><td class="cell">02/23/2026–03/24/2026</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell mmt">—</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell chk">✔</td>
+          <td class="cell chk">✔</td><td class="cell mmt">—</td>
+        </tr>
+        <tr class="r-data" data-r="7">
+          <td class="rn">7</td>
+          <td class="cell"><a href="#" onclick="sel(this);return false;">Fernandez, Joe R.</a></td>
+          <td class="cell">CC10968-02</td><td class="cell">Mi Familia Home Health</td>
+          <td class="cell">Palmetto GBA</td><td class="cell mmt">—</td>
+          <td class="cell">02/21/2026–04/21/2026</td><td class="cell">02/21/2026–03/22/2026</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell mmt">—</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell chk">✔</td>
+          <td class="cell chk">✔</td><td class="cell mmt">—</td>
+        </tr>
+        <tr class="r-data" data-r="8">
+          <td class="rn">8</td>
+          <td class="cell"><a href="#" onclick="sel(this);return false;">Graham, Barbara S.</a></td>
+          <td class="cell">SA46821-01</td><td class="cell">Mi Familia Home Health</td>
+          <td class="cell">Palmetto GBA</td><td class="cell mmt">—</td>
+          <td class="cell">02/03/2026–04/03/2026</td><td class="cell">03/05/2026–04/03/2026</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell mmt">—</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell chk">✔</td>
+          <td class="cell chk">✔</td><td class="cell mmt">—</td>
+        </tr>
+        <tr class="r-data" data-r="9">
+          <td class="rn">9</td>
+          <td class="cell"><a href="#" onclick="sel(this);return false;">Hairgrove, Sarah J.</a></td>
+          <td class="cell">SA44807-03</td><td class="cell">Mi Familia Home Health</td>
+          <td class="cell">Palmetto GBA</td><td class="cell mmt">—</td>
+          <td class="cell">02/03/2026–04/03/2026</td><td class="cell">02/03/2026–03/04/2026</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell mmt">—</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell chk">✔</td>
+          <td class="cell chk">✔</td><td class="cell mmt">—</td>
+        </tr>
+        <tr class="r-data" data-r="10">
+          <td class="rn">10</td>
+          <td class="cell"><a href="#" onclick="sel(this);return false;">Irwin, William</a></td>
+          <td class="cell">SA45884-01</td><td class="cell">Mi Familia Home Health</td>
+          <td class="cell">Palmetto GBA</td><td class="cell mmt">—</td>
+          <td class="cell">02/20/2026–04/20/2026</td><td class="cell">02/20/2026–03/21/2026</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell mmt">—</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell chk">✔</td>
+          <td class="cell chk">✔</td><td class="cell mmt">—</td>
+        </tr>
+        <tr class="r-data" data-r="11">
+          <td class="rn">11</td>
+          <td class="cell"><a href="#" onclick="sel(this);return false;">Jones, Bob L.</a></td>
+          <td class="cell">CC47044-01</td><td class="cell">Mi Familia Home Health</td>
+          <td class="cell">Palmetto GBA</td><td class="cell mmt">—</td>
+          <td class="cell">02/24/2026–04/24/2026</td><td class="cell">02/24/2026–03/25/2026</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell mmt">—</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell chk">✔</td>
+          <td class="cell chk">✔</td><td class="cell mmt">—</td>
+        </tr>
+        <tr class="r-data" data-r="12">
+          <td class="rn">12</td>
+          <td class="cell"><a href="#" onclick="sel(this);return false;">Macdonald, Susan</a></td>
+          <td class="cell">SA46485-01</td><td class="cell">Mi Familia Home Health</td>
+          <td class="cell">Palmetto GBA</td><td class="cell mmt">—</td>
+          <td class="cell">02/15/2026–03/24/2026</td><td class="cell">02/15/2026–03/16/2026</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell mmt">—</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell chk">✔</td>
+          <td class="cell chk">✔</td><td class="cell mmt">—</td>
+        </tr>
+        <tr class="r-data" data-r="13">
+          <td class="rn">13</td>
+          <td class="cell"><a href="#" onclick="sel(this);return false;">Moran, Angelina</a></td>
+          <td class="cell">SA44934-01</td><td class="cell">Mi Familia Home Health</td>
+          <td class="cell">Palmetto GBA</td><td class="cell mmt">—</td>
+          <td class="cell">01/13/2026–03/13/2026</td><td class="cell">02/12/2026–03/13/2026</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell mmt">—</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell chk">✔</td>
+          <td class="cell chk">✔</td><td class="cell mmt">—</td>
+        </tr>
+        <tr class="r-data" data-r="14">
+          <td class="rn">14</td>
+          <td class="cell"><a href="#" onclick="sel(this);return false;">Peoples, Carmelita R.</a></td>
+          <td class="cell">SA44886-01</td><td class="cell">Mi Familia Home Health</td>
+          <td class="cell">Palmetto GBA</td><td class="cell mmt">—</td>
+          <td class="cell">02/07/2026–04/07/2026</td><td class="cell">03/09/2026–04/07/2026</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell mmt">—</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell chk">✔</td>
+          <td class="cell chk">✔</td><td class="cell mmt">—</td>
+        </tr>
+        <tr class="r-data" data-r="15">
+          <td class="rn">15</td>
+          <td class="cell"><a href="#" onclick="sel(this);return false;">Tate, Linda F.</a></td>
+          <td class="cell">SA46987-01</td><td class="cell">Mi Familia Home Health</td>
+          <td class="cell">Palmetto GBA</td><td class="cell mmt">—</td>
+          <td class="cell">02/25/2026–03/27/2026</td><td class="cell">02/25/2026–03/26/2026</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell mmt">—</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell chk">✔</td>
+          <td class="cell chk">✔</td><td class="cell mmt">—</td>
+        </tr>
+        <tr class="r-data" data-r="16">
+          <td class="rn">16</td>
+          <td class="cell"><a href="#" onclick="sel(this);return false;">Warren, Charles L.</a></td>
+          <td class="cell">CC11089-03</td><td class="cell">Mi Familia Home Health</td>
+          <td class="cell">Palmetto GBA</td><td class="cell mmt">—</td>
+          <td class="cell">02/10/2026–04/10/2026</td><td class="cell">02/10/2026–03/11/2026</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell mmt">—</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell chk">✔</td>
+          <td class="cell chk">✔</td><td class="cell mmt">—</td>
+        </tr>
+        <tr class="r-data" data-r="17">
+          <td class="rn">17</td>
+          <td class="cell"><a href="#" onclick="sel(this);return false;">Wickwar, Larry D.</a></td>
+          <td class="cell">SA46960-01</td><td class="cell">Mi Familia Home Health</td>
+          <td class="cell">Palmetto GBA</td><td class="cell mmt">—</td>
+          <td class="cell">01/20/2026–03/20/2026</td><td class="cell">02/19/2026–03/20/2026</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell mmt">—</td>
+          <td class="cell chk">✔</td><td class="cell chk">✔</td><td class="cell chk">✔</td>
+          <td class="cell chk">✔</td><td class="cell mmt">—</td>
+        </tr>
+
+        <!-- Empty rows -->
+        <tr class="r-empty"><td class="rn">18</td><td class="cell" colspan="15"></td></tr>
+        <tr class="r-empty"><td class="rn">19</td><td class="cell" colspan="15"></td></tr>
+        <tr class="r-empty"><td class="rn">20</td><td class="cell" colspan="15"></td></tr>
+        <tr class="r-empty"><td class="rn">21</td><td class="cell" colspan="15"></td></tr>
+        <tr class="r-empty"><td class="rn">22</td><td class="cell" colspan="15"></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Sheet Tabs -->
+  <div class="sheet-tabs">
+    <span class="tnav">◀</span><span class="tnav">▶</span>
+    <div class="stab active">EOE Claims</div>
+    <div class="stab">Sheet2</div>
+    <div class="stab">Sheet3</div>
+  </div>
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <span>Ready &nbsp;|&nbsp; <strong>13 records</strong> &nbsp;|&nbsp; EOE Claims Sheet</span>
+  <div class="zoom-wrap">
+    <span id="zval">100%</span>
+    <input type="range" min="50" max="200" value="100"
+      oninput="document.getElementById('zval').textContent=this.value+'%'"/>
+  </div>
+</div>
+
+<script>
+  function openSheet() {
+    setTimeout(() => document.getElementById('gate').style.display = 'none', 60);
+  }
+
+  function sel(el) {
+    document.querySelectorAll('tr.r-data').forEach(r => r.classList.remove('selected'));
+    const row = el.closest('tr');
+    row.classList.add('selected');
+    document.getElementById('cref').value = 'A' + row.dataset.r;
+    document.getElementById('fval').value = el.textContent;
+  }
+
+  // Cell click → formula bar update
+  document.querySelectorAll('td.cell').forEach(td => {
+    td.addEventListener('click', function () {
+      if (this.querySelector('a')) return;
+      const row = this.closest('tr');
+      const rowNum = this.closest('tr').querySelector('.rn')?.textContent || '';
+      const cols = Array.from(this.parentNode.children);
+      const colIdx = cols.indexOf(this); // 0 = rn, 1 = A ...
+      const colLetter = colIdx > 0 ? String.fromCharCode(64 + colIdx) : '';
+      document.getElementById('cref').value = colLetter + rowNum;
+      document.getElementById('fval').value = this.textContent.trim();
+    });
+  });
+</script>
+</body>
+</html>
